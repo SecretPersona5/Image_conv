@@ -35,8 +35,7 @@ fun main() {
         1.0/9, 1.0/9, 1.0/9
     )
 
-    val result = Mat()
-    Imgproc.filter2D(gray, result, -1, kernel)
+    val result = applyConvolutionPerPixel(gray, kernel)
     val t3 = System.nanoTime()
 
     val success = Imgcodecs.imwrite(outputPath, result)
