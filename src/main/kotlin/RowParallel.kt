@@ -1,67 +1,42 @@
 import kotlinx.coroutines.*
 import org.opencv.core.*
-import kotlin.math.roundToInt
+import org.opencv.imgproc.Imgproc
 
 object RowParallel {
     fun apply(gray: Mat, kernel: Mat): Mat {
-        val h = gray.rows()
-        val w = gray.cols()
-        val result = Mat.zeros(h, w, gray.type())
-        val kSize = kernel.rows()
-        val off   = kSize / 2
-        val cores = Runtime.getRuntime().availableProcessors()
-        val K = Array(kSize) { DoubleArray(kSize) }
+        val h = gray.rows(); val w = gray.cols()
+        val k = kernel.rows(); val off = k / 2
+        val dst = Mat.zeros(h, w, gray.type())
 
-        for (i in 0 until kSize) for (j in 0 until kSize) {
-            K[i][j] = kernel.get(i, j)[0]
-        }
+        val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+        val prevThreads = Core.getNumThreads()
+        try {
+            runBlocking {
+                (0 until cores).map { t ->
+                    launch(Dispatchers.Default) {
+                        val chunk = (h + cores - 1) / cores
+                        val y0 = t * chunk
+                        val y1 = minOf(h, y0 + chunk)
+                        if (y0 >= y1) return@launch
 
-        runBlocking {
-            (0 until cores).map { t ->
-                launch(Dispatchers.Default) {
-                    val chunk = (h - 2*off + cores - 1) / cores
-                    val y0 = off + t * chunk
-                    val y1 = minOf(h - off, y0 + chunk)
-                    val rows = Array(kSize) { ByteArray(w) }
-                    var head = 0
+                        val srcY0 = maxOf(0, y0 - off)
+                        val srcY1 = minOf(h, y1 + off)
 
-                    for (i in 0 until kSize) {
-                        gray.get(y0 + i - off, 0, rows[i])
+                        val srcROI = gray.rowRange(srcY0, srcY1).colRange(0, w)
+                        val tmp = Mat()
+                        Imgproc.filter2D(
+                            srcROI, tmp, -1, kernel,
+                            Point(-1.0, -1.0), 0.0, Core.BORDER_CONSTANT
+                        )
+
+                        val from = tmp.rowRange(y0 - srcY0, y0 - srcY0 + (y1 - y0)).colRange(0, w)
+                        from.copyTo(dst.rowRange(y0, y1).colRange(0, w))
                     }
-
-                    val out = ByteArray(w)
-
-                    for (y in y0 until y1) {
-                        for (x in 0 until off) out[x] = 0
-                        for (x in w - off until w) out[x] = 0
-
-                        for (x in off until w - off) {
-                            var sum = 0.0
-                            for (i in 0 until kSize) {
-                                val row = rows[(head + i) % kSize]
-                                val Ki  = K[i]
-                                var xx = x - off
-                                var j = 0
-                                while (j < kSize) {
-                                    sum += (row[xx].toInt() and 0xFF) * Ki[j]
-                                    xx++; j++
-                                }
-                            }
-                            out[x] = sum.coerceIn(0.0, 255.0).roundToInt().toByte()
-                        }
-
-                        result.put(y, 0, out)
-
-                        if (y + 1 < y1) {
-                            val newSrcY = y + 1 + off
-                            gray.get(newSrcY, 0, rows[head])
-                            head = (head + 1) % kSize
-                        }
-                    }
-                }
+                }.joinAll()
             }
-                .joinAll()
+        } finally {
+            Core.setNumThreads(prevThreads)
         }
-        return result
+        return dst
     }
 }
