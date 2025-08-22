@@ -1,5 +1,4 @@
 import java.io.File
-import javax.swing.GrayFilter
 
 object TimeLogger {
     private val csvFile = File("src/main/resources/img/timing_log.csv")

@@ -6,8 +6,7 @@ import java.io.File
 fun main(args: Array<String>) {
     nu.pattern.OpenCV.loadLocally()
 
-
-    val mode = args.getOrNull(0) ?: "sec"
+    val mode = args.getOrNull(0) ?: "grid"
     val inputPath = args.getOrNull(1) ?: "src/main/resources/img/img3.jpg"
     val gridSize = args.getOrNull(2)?.toIntOrNull() ?: 128
 
@@ -40,7 +39,7 @@ fun main(args: Array<String>) {
         "row" -> RowParallel.apply(gray, kernel)
         "grid" -> GridParallel.apply(gray, kernel, gridSize)
         "pix" -> PixelParallel.apply(gray, kernel)
-        else  -> RowParallel.apply(gray, kernel)
+        else  -> ColParallel.apply(gray, kernel)
     }
     val t3 = System.nanoTime()
 

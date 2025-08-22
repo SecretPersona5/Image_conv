@@ -1,64 +1,35 @@
 import kotlinx.coroutines.*
-import org.opencv.core.*
-import kotlin.math.roundToInt
+import org.opencv.core.Mat
 
 object PixelParallel {
     fun apply(gray: Mat, kernel: Mat): Mat {
         val h = gray.rows()
         val w = gray.cols()
-        val result = Mat.zeros(h, w, gray.type())
+        val dst = Mat.zeros(h, w, gray.type())
 
         val k = kernel.rows()
         val off = k / 2
-        val cores = Runtime.getRuntime().availableProcessors()
+        if (h == 0 || w == 0) return dst
+        if (h < k || w < k) return dst
 
-        // Кэш ядра чтобы не дергать kernel.get(i,j) в горячем цикле
-        val K = Array(k) { DoubleArray(k) }
-        for (i in 0 until k) for (j in 0 until k) {
-            K[i][j] = kernel.get(i, j)[0]
-        }
+        val K = ConvolutionUtils.cacheKernel(kernel)
+        val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
 
         runBlocking {
             for (y in off until h - off) {
-
                 val rows = Array(k) { ByteArray(w) }
-                for (i in 0 until k) rows[i] = ByteArray(w)
-
-                for (i in 0 until k) {
-                    gray.get(y + i - off, 0, rows[i])
+                val base = y - off
+                var i = 0
+                while (i < k) {
+                    gray.get(base + i, 0, rows[i])
+                    i++
                 }
 
                 val out = ByteArray(w)
-                for (x in 0 until off) out[x] = 0
-                for (x in w - off until w) out[x] = 0
-
-                coroutineScope {
-                    repeat(cores) { t ->
-                        launch(Dispatchers.Default) {
-                            var x = off + t
-                            while (x < w - off) {
-                                var sum = 0.0
-                                for (i in 0 until k) {
-                                    val row = rows[i]
-                                    val Ki  = K[i]
-                                    var j = 0
-                                    var xx = x - off
-                                    while (j < k) {
-                                        sum += (row[xx].toInt() and 0xFF) * Ki[j]
-                                        j++; xx++
-                                    }
-                                }
-                                out[x] = sum.coerceIn(0.0, 255.0).roundToInt().toByte()
-                                x += cores
-                            }
-                        }
-                    }
-                }
-
-                result.put(y, 0, out)
+                ConvolutionUtils.convolveRowInto(rows, K, off, w, out, cores)
+                dst.put(y, 0, out)
             }
         }
-
-        return result
+        return dst
     }
 }
