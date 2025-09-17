@@ -1,3 +1,9 @@
+import conv.ColParallel
+import conv.GridParallel
+import conv.PixelParallel
+import conv.RowParallel
+import conv.Sequential
+import conv.TimeLogger
 import org.opencv.core.*
 import org.opencv.imgcodecs.Imgcodecs
 import org.opencv.imgproc.Imgproc
@@ -5,6 +11,7 @@ import java.io.File
 
 import filters.filterList
 import filters.toCvKernel
+import nu.pattern.OpenCV
 
 private data class SelectedFilter(val index: Int, val name: String, val kernel: Mat, val bias: Double)
 
@@ -109,7 +116,7 @@ private fun chooseFilter(): SelectedFilter {
 }
 
 fun main(args: Array<String>) {
-    nu.pattern.OpenCV.loadLocally()
+    OpenCV.loadLocally()
 
     val arg0 = args.getOrNull(0)
     val isInteractive = arg0 == null || arg0 in listOf("-i", "--interactive", "i", "interactive")
@@ -193,7 +200,7 @@ fun main(args: Array<String>) {
 
         val (defName, defFilter) = filterList.first()
         selected = SelectedFilter(0, defName, defFilter.toCvKernel(), defFilter.bias)
-
+                    
         val base = File(inputPath).nameWithoutExtension
         val ext = File(inputPath).extension.lowercase().let { if (it.isNotEmpty()) ".$it" else ".png" }
         outputPath = "$defaultDir/${base}_${mode}_${defName}$ext"
