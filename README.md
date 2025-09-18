@@ -103,7 +103,7 @@ It measures performance for different:
 Run full pipeline benchmarks:
 
 ```bash
-./gradlew macroBench
+./gradlew run --args='bench src/main/resources/img out/benchmarks --modes=row,seq,pix,grid,col --filters=all --tag=try1 --repeats=1 --cleanup'
 ```
 
 Results are saved to:
